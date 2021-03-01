@@ -1,0 +1,56 @@
+#! /usr/bin/env bash
+
+if [ "$1" == "" ]; then echo Fail; exit; fi
+
+dot=${dots}/$1
+user=""
+
+
+
+function hdr { echo '#! /usr/bin/env bash'; echo; }
+function swtch { echo 'false || exit'; echo; }
+
+(umask 077; mkdir -p $dot/{init/{s,x}{env,up,dn},bin,var,etc,sv/$1/log/logs})
+
+file=$dot/notes; (umask 166; touch $file)
+cat <<EOF >$dot/notes
+Environment variables go into $1/init/{s,x}env
+Startup files go into $1/init/{s,x}up
+Shut down files go into $1/init/{s,x}dn
+Config files go in $1/etc/<files-and-dirs>
+Runit files go into $1/sv/<dirs>
+Logs go into $1/sv/$1/log/logs
+Misc files go into $1/var
+Scripts go into $1/init/bin
+Linking is done by $1/link
+Notes go here
+EOF
+
+
+file=$dot/sv/$1/run; (umask 066; touch $file; chmod u+x $file)
+hdr                                                  >> $file
+echo 'user='$user                                    >> $file
+echo 'cmd='                                          >> $file
+echo '2>&1'                                          >> $file
+echo                                                 >> $file
+echo 'exec chpst -u $user $cmd'                      >> $file
+
+file=$dot/sv/$1/log/run; (umask 066; touch $file; chmod u+x $file)
+hdr                                                  >> $file
+echo 'user='$user                                    >> $file
+echo 'LOGDIR=$(pwd -P)'                              >> $file
+echo                                                 >> $file
+echo 'exec chpst -u $user svlogd -tt ${LOGDIR}/logs' >> $file
+
+
+file=$dot/link;  (umask 066; touch $file; chmod u+x $file)
+hdr                                                                    >> $file
+swtch                                                                  >> $file
+echo '. ${modules}/bash/dots.sh'                                       >> $file
+echo "dot=$1"                                                          >> $file
+echo -e '\n# (cd init/senv; kl init ${dot} -f) &'                      >> $file
+echo -ne '# (cd <directory>; kl [init|etc|sv|bin|*]'                   >> $file
+echo -e  ' <filename> [-f|-d] <prefix>) &'                             >> $file
+
+cp -r $dot/sv $dot/xv
+
